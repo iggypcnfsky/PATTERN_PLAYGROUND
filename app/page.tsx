@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
-// Dynamically import the VoronoiTessellation component with proper SSR disabled
+// Correctly import with ssr: false to prevent React hook errors
 const VoronoiTessellation = dynamic(
   () => import('@/components/sketches/voronoi-tessellation'),
   {
@@ -17,28 +17,31 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    // Ensure we're in the browser
+    if (typeof window !== 'undefined') {
+      setIsClient(true);
+    }
+    
+    return () => {
+      // Cleanup function
+    };
   }, []);
-
-  if (!isClient) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-24">
-        <div className="w-full max-w-4xl h-[600px] bg-gray-100 animate-pulse"></div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
       <div className="w-full max-w-4xl h-[600px]">
-        <VoronoiTessellation 
-          parameters={{
-            cellCount: 50,
-            borderThickness: 2,
-            jitter: 1
-          }}
-          isPlaying={true}
-        />
+        {isClient ? (
+          <VoronoiTessellation 
+            parameters={{
+              cellCount: 50,
+              borderThickness: 2,
+              jitter: 1
+            }}
+            isPlaying={true}
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-100 animate-pulse"></div>
+        )}
       </div>
     </main>
   );
