@@ -6,7 +6,14 @@ const nextConfig = {
   },
   images: { unoptimized: true },
   webpack: (config, { isServer }) => {
+    // Avoid SSR issues with p5.js and other browser-only libraries
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'p5', 'd3-delaunay'];
+    }
+    
+    // Disable cache to prevent build issues
     config.cache = false;
+    
     return config;
   },
   // Add proper handling for process termination signals
@@ -16,6 +23,8 @@ const nextConfig = {
     // Number of pages that should be kept simultaneously without being disposed
     pagesBufferLength: 2,
   },
+  // Set trailingSlash to true for Netlify to properly serve static files
+  trailingSlash: true,
 };
 
 module.exports = nextConfig;

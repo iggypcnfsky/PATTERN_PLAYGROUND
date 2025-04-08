@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 // Import Delaunay with a type assertion to handle module resolution
-import { Delaunay } from 'd3-delaunay';
+import { Delaunay, Point } from 'd3-delaunay';
 
 // Define types for p5 to avoid direct import during SSR
-type P5Type = any;
+type P5 = any;
 
 interface VoronoiTessellationProps {
   parameters: {
@@ -17,24 +16,36 @@ interface VoronoiTessellationProps {
   isPlaying: boolean;
 }
 
-// Use Next.js dynamic import to prevent SSR issues with p5.js
-const VoronoiTessellationComponent = ({ parameters, isPlaying }: VoronoiTessellationProps) => {
+const VoronoiTessellation = ({ parameters, isPlaying }: VoronoiTessellationProps) => {
   const sketchRef = useRef<HTMLDivElement>(null);
-  const p5Instance = useRef<P5Type>();
-  const [p5, setP5] = useState<any>(null);
+  const p5Instance = useRef<P5 | null>(null);
+  const [p5Module, setP5Module] = useState<any>(null);
 
   // Load p5 only on client-side
   useEffect(() => {
-    import('p5').then((p5Module) => {
-      setP5(p5Module.default);
-    });
+    // Only import p5 if we're in the browser
+    if (typeof window !== 'undefined') {
+      import('p5').then((mod) => {
+        setP5Module(mod.default);
+      });
+    }
+    
+    // Cleanup function
+    return () => {
+      if (p5Instance.current) {
+        p5Instance.current.remove();
+      }
+    };
   }, []);
 
+  // Initialize sketch after p5 is loaded
   useEffect(() => {
-    if (!p5 || !sketchRef.current) return;
+    // Only proceed if we have p5 and a container element
+    if (!p5Module || !sketchRef.current) return;
 
-    const sketch = (p: P5Type) => {
-      let points: number[][] = [];
+    const sketch = (p: P5) => {
+      // Use tuple type to match Point interface requirements
+      let points: Array<[number, number]> = [];
       let time = 0;
 
       p.setup = () => {
@@ -62,15 +73,15 @@ const VoronoiTessellationComponent = ({ parameters, isPlaying }: VoronoiTessella
         points = points.map(([x, y]) => [
           x + p.random(-parameters.jitter, parameters.jitter),
           y + p.random(-parameters.jitter, parameters.jitter)
-        ]);
+        ] as [number, number]);
 
         // Keep points within bounds
         points = points.map(([x, y]) => [
           p.constrain(x, 0, p.width),
           p.constrain(y, 0, p.height)
-        ]);
+        ] as [number, number]);
 
-        // Create Voronoi diagram
+        // Create Voronoi diagram with properly typed points
         const delaunay = Delaunay.from(points);
         const voronoi = delaunay.voronoi([0, 0, p.width, p.height]);
 
@@ -101,18 +112,19 @@ const VoronoiTessellationComponent = ({ parameters, isPlaying }: VoronoiTessella
       };
     };
 
-    // Only initialize p5 on the client side
-    p5Instance.current = new p5(sketch, sketchRef.current);
+    // Initialize p5 instance
+    p5Instance.current = new p5Module(sketch, sketchRef.current);
 
+    // Clean up function
     return () => {
-      p5Instance.current?.remove();
+      if (p5Instance.current) {
+        p5Instance.current.remove();
+        p5Instance.current = null;
+      }
     };
-  }, [p5, parameters, isPlaying]);
+  }, [p5Module, parameters, isPlaying]);
 
   return <div ref={sketchRef} className="w-full h-full" />;
 };
 
-// Export a dynamically loaded component to prevent SSR issues
-export default dynamic(() => Promise.resolve(VoronoiTessellationComponent), {
-  ssr: false
-});
+export default VoronoiTessellation;
